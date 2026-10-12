@@ -1,0 +1,8 @@
+{
+  "name": "vr-combat",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": { "test": "node --test tests/core.test.mjs" },
+  "devDependencies": { "three": "0.160.0" }
+}
