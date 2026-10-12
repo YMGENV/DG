@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#070812">
+<title>Sword &amp; Shield</title>
+<style>
+  :root { --bg:#070812; --fg:#e8ecff; --mut:#8a93b8; --acc:#4fd1ff; --bad:#ff4d6d; --ok:#5dffa3; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,sans-serif; overflow:hidden; }
+  .hidden { display:none !important; }
+  .pill { background:#0008; backdrop-filter:blur(6px); border:1px solid #fff2; border-radius:12px; padding:4px 10px; font-size:13px; }
+
+  /* ---------- start screen ---------- */
+  #launcher { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:24px; text-align:center; background:radial-gradient(circle at 50% 20%,#14183a,#070812 70%); z-index:10; overflow:auto; }
+  #launcher h1 { margin:0; font-size:32px; }
+  #launcher > p { margin:0; color:var(--mut); max-width:40ch; font-size:14px; }
+  .choices { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; width:100%; max-width:560px; }
+  .choice { flex:1 1 220px; display:flex; flex-direction:column; gap:6px; align-items:center; padding:20px 16px; border-radius:18px; border:1px solid #fff2; background:#1a2046aa; color:var(--fg); font:inherit; cursor:pointer; }
+  .choice:active { background:#232b5c; }
+  .choice .ico { font-size:38px; line-height:1; }
+  .choice b { font-size:20px; }
+  .choice span.d { color:var(--mut); font-size:13px; max-width:26ch; }
+  #launcher a { color:var(--acc); font-size:14px; }
+
+  /* ---------- player app ---------- */
+  #app-player { --bg:#05060d; }
+  #app-player #p-stage { position:fixed; inset:0; background:#05060d; }
+  #app-player video, #app-player canvas#p-ov { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #app-player .mirror { transform:scaleX(-1); }
+  #app-player #p-flash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .25s; }
+  #app-player #p-hud { position:fixed; left:0; right:0; top:0; padding:calc(env(safe-area-inset-top) + 8px) 12px 8px; display:flex; gap:8px; justify-content:space-between; align-items:flex-start; pointer-events:none; text-shadow:0 1px 4px #000; }
+  #app-player #p-bar { width:120px; height:10px; background:#0008; border:1px solid #fff3; border-radius:6px; overflow:hidden; margin-top:4px; }
+  #app-player #p-bar i { display:block; height:100%; width:100%; background:linear-gradient(90deg,var(--bad),var(--ok)); transition:width .2s; }
+  #app-player #p-panel { position:fixed; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:14px; padding:24px; background:radial-gradient(circle at 50% 20%,#14183a,#05060d 70%); text-align:center; z-index:5; overflow:auto; }
+  #app-player #p-panel h1 { margin:0; font-size:26px; letter-spacing:.5px; }
+  #app-player #p-panel p { margin:0; color:var(--mut); max-width:34ch; font-size:14px; }
+  #app-player input { font:700 32px/1 ui-monospace,monospace; letter-spacing:.3em; text-align:center; width:9ch; padding:10px; border-radius:14px; border:2px solid #fff3; background:#0b0e22; color:var(--fg); }
+  #app-player button { font:600 16px system-ui; padding:12px 20px; border-radius:14px; border:0; color:#021018; background:var(--acc); }
+  #app-player button.sec { background:#1a2046; color:var(--fg); border:1px solid #fff2; }
+  #app-player button:disabled { opacity:.6; }
+  #app-player #p-ctl { position:fixed; left:0; right:0; bottom:0; display:none; gap:8px; justify-content:center; flex-wrap:wrap; padding:8px 8px calc(env(safe-area-inset-bottom) + 10px); }
+  #app-player #p-ctl button { font-size:14px; padding:10px 14px; }
+  #app-player #p-err { color:var(--bad); min-height:1.4em; font-size:14px; }
+  #app-player #p-guide { position:fixed; left:0; right:0; bottom:70px; text-align:center; font-size:13px; color:#fff; text-shadow:0 1px 4px #000; pointer-events:none; }
+
+  /* ---------- viewer app ---------- */
+  #app-viewer { touch-action:none; }
+  #app-viewer canvas#v-gl { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #app-viewer #v-vig { position:fixed; inset:0; pointer-events:none; opacity:0; transition:opacity .3s; background:radial-gradient(circle,transparent 35%,#ff1744cc 130%); }
+  #app-viewer #v-hud { position:fixed; left:0; right:0; top:0; padding:calc(env(safe-area-inset-top) + 8px) 12px; display:none; justify-content:space-between; gap:10px; pointer-events:none; text-shadow:0 1px 4px #000; }
+  #app-viewer .pill { display:inline-block; }
+  #app-viewer #v-hp { width:180px; height:12px; border-radius:7px; background:#0008; border:1px solid #fff3; overflow:hidden; margin-bottom:4px; }
+  #app-viewer #v-hp i { display:block; height:100%; width:100%; background:linear-gradient(90deg,var(--bad),var(--ok)); transition:width .15s; }
+  #app-viewer #v-banner { position:fixed; left:0; right:0; top:46%; text-align:center; font-size:22px; font-weight:700; pointer-events:none; text-shadow:0 2px 8px #000; display:none; }
+  #app-viewer #v-menu { position:fixed; left:0; right:0; bottom:0; display:none; gap:6px; justify-content:center; flex-wrap:wrap; padding:8px 8px calc(env(safe-area-inset-bottom) + 8px); }
+  #app-viewer button { font:600 14px system-ui; padding:9px 13px; border-radius:12px; border:1px solid #fff2; color:var(--fg); background:#1a2046cc; }
+  #app-viewer button.main { background:var(--acc); color:#021018; border:0; font-size:16px; padding:12px 20px; }
+  #app-viewer button.on { background:var(--acc); color:#021018; }
+  #app-viewer .overlay { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px; text-align:center; z-index:5; background:radial-gradient(circle at 50% 20%,#14183a,#070812 70%); overflow:auto; }
+  #app-viewer .overlay.glass { background:#05060dcc; backdrop-filter:blur(4px); }
+  #app-viewer .overlay h1 { margin:0; font-size:28px; }
+  #app-viewer .overlay p { margin:0; color:var(--mut); max-width:38ch; font-size:14px; }
+  #app-viewer #v-code { font:800 64px/1 ui-monospace,monospace; letter-spacing:.2em; color:var(--acc); }
+  #app-viewer #v-url { font:12px ui-monospace,monospace; color:var(--mut); word-break:break-all; max-width:40ch; }
+  #app-viewer .back, #app-player .back { background:transparent !important; border:0 !important; color:var(--mut) !important; font-size:13px !important; padding:6px 10px !important; }
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+<!-- ================= START SCREEN ================= -->
+<div id="launcher">
+  <h1>⚔️ Sword &amp; Shield</h1>
+  <p>Two phones, one game. Pick the role for <b>this</b> phone.</p>
+  <div class="choices">
+    <button class="choice" id="pickViewer">
+      <span class="ico">🥽</span><b>Viewer</b>
+      <span class="d">Shows the arena. Creates the room and gives you a 4-digit code.</span>
+    </button>
+    <button class="choice" id="pickPlayer">
+      <span class="ico">📷</span><b>Player</b>
+      <span class="d">Camera phone that tracks your body. Enter the Viewer's code.</span>
+    </button>
+  </div>
+  <a href="?mode=viewer&demo=1">Try demo mode (no second phone)</a>
+</div>
+
+<!-- ================= PLAYER ================= -->
+<div id="app-player" class="hidden">
+  <div id="p-stage">
+    <video id="p-v" playsinline muted autoplay></video>
+    <canvas id="p-ov"></canvas>
+    <div id="p-flash"></div>
+  </div>
+
+  <div id="p-hud" style="display:none">
+    <div><div class="pill" id="p-net">offline</div></div>
+    <div style="text-align:right"><div class="pill" id="p-score">HP 100 · 0 pts</div><div id="p-bar" style="margin-left:auto"><i></i></div></div>
+  </div>
+  <div id="p-guide" style="display:none"></div>
+  <div id="p-ctl">
+    <button class="sec" id="p-cal">Recalibrate</button>
+    <button class="sec" id="p-flip">Flip camera</button>
+    <button class="sec" id="p-restart">Restart game</button>
+    <button class="sec" id="p-menu">Menu</button>
+  </div>
+
+  <div id="p-panel">
+    <h1>⚔️ Sword &amp; Shield<br><small style="font-size:14px;color:var(--mut)">PLAYER PHONE</small></h1>
+    <p>Prop this phone up 2–3 m away so your <b>whole body</b> is in frame. Right hand = sword, left forearm = shield. Step sideways to dodge, crouch to duck.</p>
+    <input id="p-code" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off">
+    <button id="p-go">Start camera &amp; connect</button>
+    <div id="p-err"></div>
+    <p style="font-size:12px">On the other phone choose <b>Viewer</b> and enter the 4-digit room code shown there.</p>
+    <button class="sec back" id="p-back">← Back to start</button>
+  </div>
+</div>
+
+<!-- ================= VIEWER ================= -->
+<div id="app-viewer" class="hidden">
+  <canvas id="v-gl"></canvas>
+  <div id="v-vig"></div>
+
+  <div id="v-hud">
+    <div><div id="v-hp"><i></i></div><span class="pill" id="v-stats">0 pts</span></div>
+    <div style="text-align:right"><span class="pill" id="v-net">—</span></div>
+  </div>
+  <div id="v-banner"></div>
+  <div id="v-menu">
+    <button id="v-bStereo">VR split</button>
+    <button id="v-bGyro">Gyro look</button>
+    <button id="v-bFlip">Flip L/R</button>
+    <button id="v-bCal">Recalibrate</button>
+    <button id="v-bFull">Fullscreen</button>
+    <button id="v-bMenu">Menu</button>
+  </div>
+
+  <div class="overlay" id="v-lobby">
+    <h1>⚔️ Sword &amp; Shield<br><small style="font-size:14px;color:var(--mut)">VIEWER PHONE</small></h1>
+    <div id="v-pre">
+      <p style="margin-bottom:14px">This phone shows the arena. The other phone (Player) tracks your body with its camera.</p>
+      <button class="main" id="v-create">Create room</button>
+      <p style="margin-top:14px"><a href="?mode=viewer&demo=1" style="color:var(--acc)">Try demo mode</a> (no second phone needed)</p>
+    </div>
+    <div id="v-room" class="hidden">
+      <p>On the Player phone choose <b>Player</b> and enter</p>
+      <div id="v-code">----</div>
+      <div id="v-url"></div>
+      <p id="v-lobbyStatus">Waiting for player…</p>
+    </div>
+    <button class="back" id="v-back">← Back to start</button>
+  </div>
+
+  <div class="overlay glass hidden" id="v-over">
+    <h1>💀 Game over</h1>
+    <p id="v-final"></p>
+    <button class="main" id="v-again">Play again</button>
+  </div>
+</div>
+
+<script type="module">
+import { encodePose, validPose, ROOM_PREFIX, ICE_SERVERS } from './protocol.js';
+
+const params = new URLSearchParams(location.search);
+const goHome = () => { location.href = location.pathname; };
+
+/* ================================================================
+   PLAYER  (camera phone: MediaPipe pose -> PeerJS)
+   ================================================================ */
+function startPlayer() {
+const $ = (id) => document.getElementById('p-' + id);
+const VISION = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL = `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${params.get('model') === 'full' ? 'full' : 'lite'}/float16/1/pose_landmarker_${params.get('model') === 'full' ? 'full' : 'lite'}.task`;
+const SEND_HZ = 40;
+
+const video = $('v'), ov = $('ov'), ctx = ov.getContext('2d');
+let landmarker = null, peer = null, conn = null, roomId = null, facing = 'user', stream = null;
+let seq = 0, lastSend = 0, lastVT = -1, frames = 0, fps = 0, rtt = null, state = 'idle', retryTimer = null, wake = null;
+
+if (params.get('room')) $('code').value = params.get('room').slice(0, 4);
+
+function err(msg) { $('err').textContent = msg || ''; }
+function setNet() {
+  const n = $('net');
+  const c = conn && conn.open;
+  n.textContent = (c ? '🟢 linked' : '🔴 offline') + ` · ${fps} fps` + (rtt != null ? ` · ${Math.round(rtt)} ms` : '');
+}
+
+/* ---------- camera ---------- */
+async function startCamera() {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, max: 30 } },
+  });
+  video.srcObject = stream;
+  await video.play();
+  const mirror = facing === 'user';
+  video.classList.toggle('mirror', mirror);
+  ov.classList.toggle('mirror', mirror);
+  ov.width = video.videoWidth; ov.height = video.videoHeight;
+}
+
+/* ---------- MediaPipe pose ---------- */
+async function loadPose() {
+  const { PoseLandmarker, FilesetResolver } = await import(`${VISION}/vision_bundle.mjs`);
+  const fileset = await FilesetResolver.forVisionTasks(`${VISION}/wasm`);
+  const make = (delegate) => PoseLandmarker.createFromOptions(fileset, {
+    baseOptions: { modelAssetPath: MODEL, delegate },
+    runningMode: 'VIDEO', numPoses: 1,
+    minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+  });
+  try { landmarker = await make('GPU'); } catch (e) { console.warn('GPU delegate failed, using CPU', e); landmarker = await make('CPU'); }
+}
+
+const BONES = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+function draw(lm) {
+  ctx.clearRect(0, 0, ov.width, ov.height);
+  if (!lm) return;
+  const W = ov.width, H = ov.height;
+  ctx.lineWidth = 4; ctx.lineCap = 'round';
+  for (const [a, b] of BONES) {
+    const p = lm[a], q = lm[b];
+    ctx.strokeStyle = (a === 12 && b === 14) || (a === 14 && b === 16) ? '#ff9f43' : '#4fd1ff'; // sword arm in orange
+    ctx.beginPath(); ctx.moveTo(p.x * W, p.y * H); ctx.lineTo(q.x * W, q.y * H); ctx.stroke();
+  }
+  ctx.fillStyle = '#fff';
+  for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) { ctx.beginPath(); ctx.arc(lm[i].x * W, lm[i].y * H, 5, 0, 7); ctx.fill(); }
+  // sword hand / shield hand markers
+  ctx.font = 'bold 28px system-ui'; ctx.textAlign = 'center';
+  ctx.save(); // text must not be mirrored twice: CSS mirrors the canvas, so un-mirror locally
+  if (facing === 'user') { ctx.translate(W, 0); ctx.scale(-1, 1); }
+  const t = (i, s) => { const x = facing === 'user' ? W - lm[i].x * W : lm[i].x * W; ctx.fillText(s, x, lm[i].y * H - 14); };
+  t(16, '⚔️'); t(15, '🛡️');
+  ctx.restore();
+}
+
+function inFrameHint(lm) {
+  const g = $('guide');
+  let min = 1;
+  for (const i of [0, 15, 16, 27, 28]) min = Math.min(min, lm[i].visibility ?? 1);
+  const lowY = Math.max(lm[27].y, lm[28].y), hi = lm[0].y;
+  if (min < 0.4 || lowY > 0.98 || hi < 0.02) { g.textContent = 'Step back — show your whole body (head to feet)'; g.style.display = 'block'; }
+  else g.style.display = 'none';
+}
+
+function loop() {
+  requestAnimationFrame(loop);
+  if (state !== 'running' || !landmarker || video.readyState < 2 || video.currentTime === lastVT) return;
+  lastVT = video.currentTime;
+  const now = performance.now();
+  let res;
+  try { res = landmarker.detectForVideo(video, now); } catch (e) { console.warn(e); return; }
+  frames++;
+  if (res.landmarks && res.landmarks.length) {
+    const lm = res.landmarks[0];
+    draw(lm); inFrameHint(lm);
+    if (conn && conn.open && now - lastSend >= 1000 / SEND_HZ) {
+      lastSend = now;
+      try { conn.send(encodePose(seq++, res.worldLandmarks[0], lm)); } catch (e) { console.warn('send failed', e); }
+    }
+  } else {
+    draw(null);
+    $('guide').textContent = 'No person detected — stand back and face the camera'; $('guide').style.display = 'block';
+  }
+}
+setInterval(() => { fps = frames; frames = 0; setNet(); }, 1000);
+
+/* ---------- WebRTC (PeerJS) ---------- */
+function connect(code) {
+  roomId = ROOM_PREFIX + code;
+  if (peer) { try { peer.destroy(); } catch {} }
+  peer = new Peer({ config: { iceServers: ICE_SERVERS }, debug: 1 });
+  peer.on('open', () => dial());
+  peer.on('disconnected', () => { try { peer.reconnect(); } catch {} });
+  peer.on('error', (e) => {
+    console.warn('peer error', e.type);
+    if (e.type === 'peer-unavailable') { $('net').textContent = '🔴 room not found'; scheduleRetry(); }
+    else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') scheduleRetry();
+  });
+}
+function dial() {
+  if (!peer || peer.destroyed) return;
+  conn = peer.connect(roomId, { reliable: false, serialization: 'json' });
+  conn.on('open', () => {
+    seq = 0; rtt = null; clearTimeout(retryTimer); setNet();
+    conn.send({ t: 'hello', ua: navigator.userAgent.slice(0, 60) });
+  });
+  conn.on('data', onData);
+  conn.on('close', () => { setNet(); scheduleRetry(); });
+  conn.on('error', () => scheduleRetry());
+}
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => { if (!(conn && conn.open)) { if (peer && !peer.destroyed && peer.open) dial(); else connect(roomId.slice(ROOM_PREFIX.length)); } }, 2000);
+}
+setInterval(() => { if (conn && conn.open) conn.send({ t: 'ping', ts: performance.now() }); }, 1000);
+
+function flash(color) {
+  const f = $('flash'); f.style.background = `radial-gradient(circle,transparent 30%,${color} 120%)`; f.style.opacity = '1';
+  setTimeout(() => (f.style.opacity = '0'), 120);
+}
+function onData(m) {
+  if (!m || typeof m !== 'object') return;
+  if (m.t === 'pong') rtt = performance.now() - m.ts;
+  else if (m.t === 'ev') {
+    $('score').textContent = `HP ${m.hp} · ${m.score} pts` + (m.over ? ' · GAME OVER' : '');
+    $('bar').firstElementChild.style.width = Math.max(0, m.hp) + '%';
+    if (m.k === 'hit') { flash('#ff1744'); navigator.vibrate && navigator.vibrate(m.over ? [200, 80, 300] : 140); }
+    else if (m.k === 'block') { flash('#4fd1ff'); navigator.vibrate && navigator.vibrate(30); }
+    else if (m.k === 'slash' || m.k === 'kill') { flash('#ffd166'); navigator.vibrate && navigator.vibrate(18); }
+  }
+}
+
+/* ---------- UI ---------- */
+$('go').onclick = async () => {
+  err('');
+  const code = $('code').value.trim();
+  if (!/^\d{4}$/.test(code)) { err('Enter the 4-digit room code from the viewer.'); return; }
+  $('go').disabled = true; $('go').textContent = 'Loading model…';
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera needs HTTPS (or localhost).');
+    await startCamera();
+    await loadPose();
+  } catch (e) {
+    console.error(e); err('Could not start: ' + (e.message || e)); $('go').disabled = false; $('go').textContent = 'Start camera & connect'; return;
+  }
+  $('panel').style.display = 'none'; $('hud').style.display = 'flex'; $('ctl').style.display = 'flex';
+  state = 'running'; connect(code); loop();
+  try { wake = await navigator.wakeLock?.request('screen'); } catch {}
+};
+$('cal').onclick = () => conn && conn.open && conn.send({ t: 'cal' });
+$('restart').onclick = () => conn && conn.open && conn.send({ t: 'restart' });
+$('flip').onclick = async () => { facing = facing === 'user' ? 'environment' : 'user'; try { await startCamera(); } catch (e) { err(String(e)); } };
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && state === 'running') { try { wake = await navigator.wakeLock?.request('screen'); } catch {} }
+});
+
+$('back').onclick = goHome;
+$('menu').onclick = goHome;
+}
+
+/* ================================================================
+   VIEWER  (arena phone: three.js scene + game logic)
+   ================================================================ */
+async function startViewer() {
+const $ = (id) => document.getElementById('v-' + id);
+const THREE = await import('three');
+const { PoseMapper, Equipment, HurtBoxes, Game, syntheticPose, LM, SWORD_LEN, SHIELD_R } = await import('./game-core.js');
+const demo = params.has('demo');
+
+/* ================= scene ================= */
+const canvas = $('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070812);
+scene.fog = new THREE.Fog(0x070812, 12, 42);
+const camera = new THREE.PerspectiveCamera(65, 1, 0.05, 80);
+const eyeCam = new THREE.PerspectiveCamera(70, 1, 0.05, 80);
+
+scene.add(new THREE.HemisphereLight(0x9bb8ff, 0x1a0f2a, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(3, 8, 4); scene.add(sun);
+const swordLight = new THREE.PointLight(0x66ddff, 1.2, 4); scene.add(swordLight);
+
+const ground = new THREE.Mesh(new THREE.CircleGeometry(40, 48), new THREE.MeshStandardMaterial({ color: 0x0d1024, roughness: 0.9 }));
+ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const grid = new THREE.GridHelper(80, 80, 0x2b3a7a, 0x161c3a); grid.position.y = 0.01; scene.add(grid);
+for (const r of [2.2, 6, 12]) {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.03, r + 0.03, 64), new THREE.MeshBasicMaterial({ color: 0x3a5cff, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02; scene.add(ring);
+}
+const pillars = new THREE.Group(); scene.add(pillars);
+for (let i = 0; i < 14; i++) {
+  const a = (i / 14) * Math.PI * 2, p = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 5 + (i % 3), 8), new THREE.MeshStandardMaterial({ color: 0x1b2150, emissive: 0x0a1030 }));
+  p.position.set(Math.cos(a) * 18, 2.5, Math.sin(a) * 18 - 6); pillars.add(p);
+}
+
+/* ---------- avatar ---------- */
+const matBody = new THREE.MeshStandardMaterial({ color: 0x4fd1ff, metalness: 0.45, roughness: 0.4, emissive: 0x0a3040 });
+const matDark = new THREE.MeshStandardMaterial({ color: 0x1c2a55, metalness: 0.5, roughness: 0.5 });
+const cyl = new THREE.CylinderGeometry(1, 1, 1, 10);
+const BONES = [[11,13],[13,15],[12,14],[14,16],[11,12],[23,24],[11,23],[12,24],[23,25],[25,27],[24,26],[26,28],[27,31],[28,32]];
+const RADII = [0.05,0.04,0.05,0.04,0.055,0.06,0.04,0.04,0.075,0.055,0.075,0.055,0.04,0.04];
+const avatar = new THREE.Group(); scene.add(avatar);
+const boneMeshes = BONES.map((_, i) => { const m = new THREE.Mesh(cyl, i < 4 ? matBody : matDark); avatar.add(m); return m; });
+const torso = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), matBody); avatar.add(torso);
+const head = new THREE.Group(); avatar.add(head);
+head.add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 16), matBody));
+const visor = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.045, 0.05), new THREE.MeshBasicMaterial({ color: 0xaaf0ff }));
+visor.position.set(0, 0.01, -0.1); head.add(visor);
+const crest = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.14, 6), new THREE.MeshStandardMaterial({ color: 0xff5d73 })); crest.position.y = 0.17; head.add(crest);
+
+const UP = new THREE.Vector3(0, 1, 0), FWD = new THREE.Vector3(0, 0, 1);
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion();
+function placeBone(mesh, a, b, r) {
+  _a.subVectors(b, a); const len = _a.length() || 1e-4;
+  mesh.position.copy(a).addScaledVector(_a, 0.5);
+  mesh.quaternion.setFromUnitVectors(UP, _a.divideScalar(len));
+  mesh.scale.set(r, len, r);
+}
+
+// sword
+const sword = new THREE.Group(); scene.add(sword);
+const bladeMat = new THREE.MeshStandardMaterial({ color: 0xcdf6ff, emissive: 0x2fb7ff, emissiveIntensity: 0.9, metalness: 0.8, roughness: 0.2 });
+const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, SWORD_LEN - 0.12, 0.016), bladeMat); blade.position.y = 0.1 + (SWORD_LEN - 0.12) / 2; sword.add(blade);
+const guard = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 0.06), new THREE.MeshStandardMaterial({ color: 0xffc857, metalness: 0.9, roughness: 0.3 })); guard.position.y = 0.08; sword.add(guard);
+const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.2, 8), matDark); grip.position.y = -0.03; sword.add(grip);
+// shield
+const shield = new THREE.Group(); scene.add(shield);
+const shMat = new THREE.MeshStandardMaterial({ color: 0x2b50ff, emissive: 0x0a1a66, emissiveIntensity: 0.6, metalness: 0.7, roughness: 0.35 });
+const disc = new THREE.Mesh(new THREE.CylinderGeometry(SHIELD_R, SHIELD_R, 0.05, 32), shMat); disc.rotation.x = Math.PI / 2; shield.add(disc);
+const rim = new THREE.Mesh(new THREE.TorusGeometry(SHIELD_R, 0.025, 8, 40), new THREE.MeshStandardMaterial({ color: 0xffc857, metalness: 0.9, roughness: 0.3 })); shield.add(rim);
+const boss = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 12), new THREE.MeshStandardMaterial({ color: 0xffc857, metalness: 0.9, roughness: 0.3 })); boss.position.z = -0.04; shield.add(boss);
+
+/* ---------- enemies, particles ---------- */
+function glowTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, '#fff'); gr.addColorStop(0.3, '#fff8'); gr.addColorStop(1, '#0000');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+}
+const GLOW = glowTex();
+const orbGeo = new THREE.SphereGeometry(0.16, 16, 12);
+const bruteGeo = new THREE.IcosahedronGeometry(0.45, 1);
+const eyeGeo = new THREE.SphereGeometry(0.06, 8, 6);
+function makeEnemy(e) {
+  const g = new THREE.Group();
+  if (e.kind === 'orb') {
+    g.add(new THREE.Mesh(orbGeo, new THREE.MeshBasicMaterial({ color: 0xff7a33 })));
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0xff5a1f, blending: THREE.AdditiveBlending, depthWrite: false })); s.scale.set(1, 1, 1); g.add(s);
+  } else {
+    g.add(new THREE.Mesh(bruteGeo, new THREE.MeshStandardMaterial({ color: 0x5a1230, flatShading: true, roughness: 0.7, emissive: 0x200510 })));
+    for (const x of [-0.16, 0.16]) { const eye = new THREE.Mesh(eyeGeo, new THREE.MeshBasicMaterial({ color: 0xff2d55 })); eye.position.set(x, 0.1, 0.38); g.add(eye); }
+  }
+  scene.add(g); return { g, e, deflected: false };
+}
+const enemyViews = new Map();
+function syncEnemies(t) {
+  const alive = new Set();
+  for (const e of game.enemies) {
+    alive.add(e.id);
+    let v = enemyViews.get(e.id);
+    if (!v) { v = makeEnemy(e); enemyViews.set(e.id, v); }
+    v.g.position.copy(e.pos);
+    if (e.kind === 'brute') { v.g.position.y += Math.sin(t * 6 + e.id) * 0.04; v.g.children[0].material.emissive.setHex(e.cool > 0 ? 0xaa2244 : 0x200510); }
+    else { v.g.children[1].scale.setScalar(0.9 + Math.sin(t * 20 + e.id) * 0.12); }
+    if (e.deflected && !v.deflected) { v.deflected = true; v.g.children[0].material.color.setHex(0x66e0ff); v.g.children[1].material.color.setHex(0x33aaff); }
+  }
+  for (const [id, v] of enemyViews) if (!alive.has(id)) { scene.remove(v.g); enemyViews.delete(id); }
+}
+const parts = [];
+const partGeo = new THREE.SphereGeometry(0.04, 6, 4);
+for (let i = 0; i < 80; i++) {
+  const m = new THREE.Mesh(partGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  m.visible = false; scene.add(m); parts.push({ m, v: new THREE.Vector3(), life: 0 });
+}
+let partIdx = 0;
+function burst(pos, color, n = 14, speed = 3) {
+  for (let i = 0; i < n; i++) {
+    const p = parts[partIdx++ % parts.length];
+    p.m.position.copy(pos); p.m.material.color.setHex(color); p.m.visible = true; p.life = 0.5 + Math.random() * 0.3;
+    p.v.set((Math.random() - 0.5), (Math.random() - 0.2), (Math.random() - 0.5)).normalize().multiplyScalar(speed * (0.4 + Math.random()));
+  }
+}
+function updateParticles(dt) {
+  for (const p of parts) if (p.life > 0) {
+    p.life -= dt; p.m.position.addScaledVector(p.v, dt); p.v.y -= 6 * dt; p.m.material.opacity = Math.max(0, p.life * 2);
+    if (p.life <= 0) p.m.visible = false;
+  }
+}
+
+/* ================= audio ================= */
+let actx = null;
+const SFX = { block: ['square', 300, 120, 0.12, 0.18], slash: ['sawtooth', 900, 200, 0.14, 0.15], hit: ['sawtooth', 140, 40, 0.35, 0.3], kill: ['triangle', 200, 800, 0.25, 0.2], over: ['sawtooth', 300, 30, 0.9, 0.3] };
+function sfx(k) {
+  if (!actx || !SFX[k]) return;
+  const [type, f0, f1, dur, vol] = SFX[k], t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+
+/* ================= game state ================= */
+const mapper = new PoseMapper(), equip = new Equipment(), hurt = new HurtBoxes(), game = new Game();
+let started = false, lastPoseT = 0, poseCount = 0, poseHz = 0, shake = 0, shieldFlash = 0, bannerTimer = 0;
+
+function sendEv(k) {
+  if (conn && conn.open) try { conn.send({ t: 'ev', k, hp: game.hp, score: game.score, over: game.over }); } catch {}
+}
+function banner(text, ms = 1200) { const b = $('banner'); b.textContent = text; b.style.display = 'block'; bannerTimer = performance.now() + ms; }
+function handleEvents(evs) {
+  for (const ev of evs) {
+    switch (ev.type) {
+      case 'block': burst(ev.pos, 0x66aaff, 16, 3.5); shieldFlash = 1; sfx('block'); sendEv('block'); break;
+      case 'slash': burst(ev.pos, 0xffd166, 14, 4); sfx('slash'); sendEv('slash'); break;
+      case 'kill': burst(ev.pos, 0xff4d6d, 40, 6); sfx('kill'); sendEv('kill'); banner('BRUTE SLAIN +50'); break;
+      case 'hit': burst(ev.pos, 0xff3355, 24, 4); shake = 1; $('vig').style.opacity = '1'; setTimeout(() => ($('vig').style.opacity = '0'), 160); sfx('hit'); sendEv('hit'); break;
+      case 'gameover': sfx('over'); sendEv('hit'); showGameOver(); break;
+    }
+  }
+}
+function showGameOver() {
+  const s = game.stats;
+  $('final').textContent = `Score ${game.score} · survived ${Math.round(game.time)} s · ${s.blocks} blocks · ${s.slashes} slashes · ${s.kills} brutes`;
+  $('over').classList.remove('hidden');
+}
+function restart() { game.reset(); $('over').classList.add('hidden'); sendEv('restart'); }
+$('again').onclick = restart;
+
+/* ================= networking (PeerJS / WebRTC) ================= */
+let peer = null, conn = null, lastSeq = -1;
+function createRoom() {
+  const code = String(Math.floor(1000 + Math.random() * 9000));
+  peer = new Peer(ROOM_PREFIX + code, { config: { iceServers: ICE_SERVERS }, debug: 1 });
+  peer.on('open', () => {
+    $('code').textContent = code;
+    const pu = new URL(location.href); pu.search = ''; pu.hash = ''; pu.searchParams.set('mode', 'player'); pu.searchParams.set('room', code);
+    $('url').textContent = pu.href;
+    $('pre').classList.add('hidden'); $('room').classList.remove('hidden');
+  });
+  peer.on('connection', (c) => {
+    if (conn && conn !== c) { try { conn.close(); } catch {} }
+    conn = c; lastSeq = -1;
+    c.on('open', () => { $('lobbyStatus').textContent = '✅ Player connected!'; setTimeout(beginPlay, 700); });
+    c.on('data', onData);
+    c.on('close', () => { if (conn === c) { conn = null; $('net').textContent = '🔴 player disconnected'; } });
+    c.on('error', (e) => console.warn('conn error', e));
+  });
+  peer.on('disconnected', () => { try { peer.reconnect(); } catch {} });
+  peer.on('error', (e) => {
+    console.warn('peer error', e.type);
+    if (e.type === 'unavailable-id') { try { peer.destroy(); } catch {} createRoom(); }
+    else $('lobbyStatus').textContent = 'Network problem (' + e.type + '). Check your connection and reload.';
+  });
+}
+function onData(m) {
+  if (!m || typeof m !== 'object') return;
+  if (m.t === 'p') {
+    if (!validPose(m) || m.s <= lastSeq) return; // drop malformed or out-of-order packets
+    lastSeq = m.s; lastPoseT = performance.now(); poseCount++;
+    mapper.update(m, lastPoseT / 1000);
+  } else if (m.t === 'ping') { try { conn.send({ t: 'pong', ts: m.ts }); } catch {} }
+  else if (m.t === 'cal') { mapper.recalibrate(); banner('Calibrating — stand still', 1000); }
+  else if (m.t === 'restart') restart();
+}
+setInterval(() => { poseHz = poseCount; poseCount = 0; }, 1000);
+
+/* ================= menu / modes ================= */
+function beginPlay() {
+  if (started) return;
+  started = true; mapper.recalibrate();
+  $('lobby').classList.add('hidden'); $('hud').style.display = 'flex'; $('menu').style.display = 'flex';
+  banner('Stand still… calibrating', 1500);
+}
+$('create').onclick = () => { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); createRoom(); };
+if (demo) {
+  $('pre').innerHTML = '<p>Demo mode: a built-in animated player swings the sword and raises the shield so you can see the whole game without a second phone.</p><button class="main" id="v-goDemo">Start demo</button>';
+  $('goDemo').onclick = () => { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); beginPlay(); };
+}
+let stereo = false, gyroOn = false, a0 = null, gyro = { a: 0, b: 90, g: 0 };
+$('bStereo').onclick = (e) => { stereo = !stereo; e.target.classList.toggle('on', stereo); resize(); };
+$('bFlip').onclick = (e) => { mapper.mirrorX = !mapper.mirrorX; e.target.classList.toggle('on', !mapper.mirrorX); };
+$('bCal').onclick = () => { mapper.recalibrate(); banner('Calibrating — stand still', 1000); };
+$('bFull').onclick = () => { const d = document.documentElement; (d.requestFullscreen || d.webkitRequestFullscreen)?.call(d); };
+$('bGyro').onclick = async (e) => {
+  if (gyroOn) { a0 = null; banner('Gyro recentred', 800); return; } // tap again to recentre
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+      if ((await DeviceOrientationEvent.requestPermission()) !== 'granted') return;
+    }
+    window.addEventListener('deviceorientation', (ev) => {
+      if (ev.alpha == null) return;
+      if (a0 === null) a0 = ev.alpha;
+      gyro = { a: ev.alpha - a0, b: ev.beta, g: ev.gamma };
+    });
+    gyroOn = true; e.target.classList.add('on'); e.target.textContent = 'Recentre';
+  } catch (err) { banner('Gyro unavailable', 1500); }
+};
+const _e = new THREE.Euler(), _q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), _q0 = new THREE.Quaternion(), ZEE = new THREE.Vector3(0, 0, 1);
+function gyroQuat(out) {
+  const r = THREE.MathUtils.degToRad, orient = r(screen.orientation ? screen.orientation.angle : window.orientation || 0);
+  _e.set(r(gyro.b), r(gyro.a), -r(gyro.g), 'YXZ'); out.setFromEuler(_e); out.multiply(_q1); out.multiply(_q0.setFromAxisAngle(ZEE, -orient));
+}
+
+/* ================= main loop ================= */
+let W = 0, H = 0;
+function resize() { W = innerWidth; H = innerHeight; renderer.setSize(W, H, false); camera.aspect = (stereo ? W / 2 : W) / H; camera.updateProjectionMatrix(); eyeCam.aspect = camera.aspect; eyeCam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+let last = performance.now(), lastDemo = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const t = now / 1000;
+  if (demo && started && now - lastDemo >= 33) { mapper.update(syntheticPose(t, 0), t); lastDemo = now; lastPoseT = now; poseHz = 30; }
+
+  const tracking = started && mapper.has && (demo || now - lastPoseT < 1500);
+  if (mapper.has) {
+    const j = mapper.joints;
+    equip.update(j, dt); hurt.update(j);
+    for (let i = 0; i < BONES.length; i++) placeBone(boneMeshes[i], j[BONES[i][0]], j[BONES[i][1]], RADII[i]);
+    const x = _a.subVectors(j[LM.R_SH], j[LM.L_SH]).normalize();
+    const y = _b.addVectors(j[LM.L_SH], j[LM.R_SH]).multiplyScalar(0.5).sub(_c.addVectors(j[LM.L_HIP], j[LM.R_HIP]).multiplyScalar(0.5));
+    const sh = j[LM.L_SH].distanceTo(j[LM.R_SH]), tl = y.length();
+    y.normalize(); const z = _c.crossVectors(x, y).normalize(); y.crossVectors(z, x);
+    _m.makeBasis(x, y, z); torso.quaternion.setFromRotationMatrix(_m);
+    torso.position.copy(hurt.torso);
+    torso.scale.set(sh + 0.08, tl, 0.2);
+    head.position.copy(hurt.head); head.quaternion.copy(torso.quaternion);
+    sword.position.copy(equip.sword.base); sword.quaternion.setFromUnitVectors(UP, equip.sword.dir);
+    swordLight.position.copy(equip.sword.base).addScaledVector(equip.sword.dir, 0.6);
+    swordLight.intensity = 0.8 + Math.min(2, equip.sword.speed * 0.3);
+    shield.position.copy(equip.shield.c); shield.quaternion.setFromUnitVectors(FWD, equip.shield.n.clone().negate());
+    shieldFlash = Math.max(0, shieldFlash - dt * 4); shMat.emissiveIntensity = 0.6 + shieldFlash * 3;
+  }
+  if (tracking && mapper.cal.done && !game.over) handleEvents(game.update(dt, equip, hurt));
+  syncEnemies(t); updateParticles(dt);
+
+  // camera: behind the avatar, follows it sideways; optional gyro look
+  shake = Math.max(0, shake - dt * 3);
+  const cx = hurt.torso.x * 0.5;
+  camera.position.set(cx + (Math.random() - 0.5) * shake * 0.15, 1.75 + (Math.random() - 0.5) * shake * 0.15, 3.6);
+  if (gyroOn) gyroQuat(camera.quaternion); else camera.lookAt(cx, 1.2, -4);
+
+  // HUD
+  $('hp').firstElementChild.style.width = game.hp + '%';
+  $('stats').textContent = `${game.score} pts · x${(1 + Math.min(game.combo, 20) * 0.1).toFixed(1)}${game.combo >= 3 ? ' 🔥' + game.combo : ''} · Lv ${game.level}`;
+  $('net').textContent = demo ? '🧪 demo' : (conn && conn.open ? `🟢 ${poseHz} Hz` : '🔴 no player');
+  const b = $('banner');
+  if (started && !tracking && !demo) { b.textContent = 'Waiting for player tracking…'; b.style.display = 'block'; }
+  else if (performance.now() > bannerTimer) b.style.display = 'none';
+
+  // render (optionally split-screen for a cardboard-style headset)
+  if (!stereo) { renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H); renderer.render(scene, camera); }
+  else {
+    renderer.setScissorTest(true); camera.updateMatrixWorld();
+    const right = _a.set(1, 0, 0).applyQuaternion(camera.quaternion);
+    for (const s of [-1, 1]) {
+      eyeCam.position.copy(camera.position).addScaledVector(right, s * 0.032); eyeCam.quaternion.copy(camera.quaternion);
+      const x0 = s < 0 ? 0 : W / 2;
+      renderer.setViewport(x0, 0, W / 2, H); renderer.setScissor(x0, 0, W / 2, H); renderer.render(scene, eyeCam);
+    }
+  }
+}
+requestAnimationFrame(frame);
+window.__game = { game, mapper, equip, hurt }; // handy for debugging in the console
+
+$('back').onclick = goHome;
+$('bMenu').onclick = goHome;
+}
+
+/* ================= start screen wiring ================= */
+function launch(mode) {
+  $('launcher').classList.add('hidden');
+  if (mode === 'player') { $('app-player').classList.remove('hidden'); startPlayer(); }
+  else { $('app-viewer').classList.remove('hidden'); startViewer(); }
+}
+function $(id) { return document.getElementById(id); }
+$('pickViewer').onclick = () => launch('viewer');
+$('pickPlayer').onclick = () => launch('player');
+const wanted = params.get('mode') || (params.has('demo') ? 'viewer' : params.has('room') ? 'player' : '');
+if (wanted === 'player' || wanted === 'viewer') launch(wanted);
+</script>
+</body>
+</html>
